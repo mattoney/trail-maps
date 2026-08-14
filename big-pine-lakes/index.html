@@ -690,7 +690,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     -webkit-user-select:none;user-select:none}
   #handle{width:44px;height:5px;border-radius:3px;background:#555;margin:6px auto 10px;cursor:pointer}
   #title{font-size:24px;font-weight:700;margin:0 0 10px}
-  #statrow{display:flex;gap:18px;font-size:15px;color:var(--txt);flex-wrap:wrap;margin-bottom:6px}
+  #statrow{display:flex;gap:13px;font-size:14px;color:var(--txt);flex-wrap:wrap;margin-bottom:6px}
   #statrow span{white-space:nowrap}
   #statrow .ic{color:var(--dim);margin-right:4px}
   #chartwrap{position:relative;margin:10px 0 2px;display:block}
@@ -699,12 +699,24 @@ svg.leaflet-image-layer.leaflet-interactive path {
   #scrubinfo{position:absolute;top:-8px;left:0;transform:translate(-50%,-100%);background:var(--sheet2);
     color:var(--txt);font-size:12px;padding:3px 8px;border-radius:8px;white-space:nowrap;display:none;pointer-events:none}
   #btnrow{display:flex;gap:12px;margin-top:14px}
-  .pill{flex:1;border:none;border-radius:28px;padding:15px 0;font-size:17px;font-weight:600;cursor:pointer}
-  #offline{background:var(--sheet2);color:var(--txt)}
+  .pill{flex:1;border:none;border-radius:28px;padding:15px 0;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.01em;transition:filter .15s}
+  .pill:active{filter:brightness(1.2)}
+  .i{flex:none;vertical-align:-2px}
+  .ic .i{vertical-align:-2.5px}
+  #statrow .ic{margin-right:5px}
+  #offline{background:var(--sheet2);color:var(--txt);border:1px solid #333a30}
   #offline.done{color:var(--green)}
   #start{background:var(--green);color:#0c1405}
   #start.tracking{background:#e05b4d;color:#fff}
+  #extras{display:none;padding-bottom:8px}
+  .full #extras{display:block}
+  .full{max-height:80vh;overflow-y:auto}
   .collapsed #chartwrap,.collapsed #chartlabels,.collapsed #statrow{display:none}
+  .sect{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 2px;
+    border-bottom:1px solid #2b2f2a;font-size:16px;color:var(--txt);text-decoration:none;cursor:pointer}
+  .row .chev{color:var(--dim);font-size:20px}
+  .row.dim{color:var(--dim)}
   .wpt-label{background:rgba(255,255,255,.92);border:1px solid #888;border-radius:6px;padding:1px 5px;
     font-size:11px;font-weight:600;color:#222;white-space:nowrap}
 </style>
@@ -724,8 +736,26 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </div>
   <div id="chartlabels"></div>
   <div id="btnrow">
-    <button class="pill" id="offline">⬇ Download offline</button>
-    <button class="pill" id="start">➤ Start</button>
+    <button class="pill" id="offline"></button>
+    <button class="pill" id="start"></button>
+  </div>
+  <div id="extras">
+    <div class="sect">Waypoints</div>
+    <div id="wptlist"></div>
+    <div class="sect">🪵 Stump log</div>
+    <div id="stumplist"><div class="row dim">No stumps logged yet</div></div>
+    <div class="sect">More</div>
+    <div class="row" id="overviewrow">🗺 Trail overview <span class="chev">›</span></div>
+    <div id="overview" style="display:none;font-size:14px;color:var(--dim);line-height:1.55;padding:4px 2px 12px;border-bottom:1px solid #2b2f2a">
+      Out-and-back along North Fork Big Pine Creek: waterfalls and the Lon Chaney cabin low down,
+      then glacial First–Third Lakes (that milky turquoise is rock flour from Palisade Glacier),
+      with the spur to Fifth Lake near the top. Roughly 7,800–11,200 ft, so pace the altitude.
+      Overnights need an Inyo NF wilderness permit; day hikes don't. No water past the lakes — filter there.
+    </div>
+    <a class="row" id="weather" target="_blank" rel="noopener">🌤 Trail conditions / forecast (NOAA) <span class="chev">›</span></a>
+    <div class="row" id="shareloc">📡 Share my location <span class="chev">›</span></div>
+    <a class="row" id="drive" target="_blank" rel="noopener">🚗 Driving directions to trailhead <span class="chev">›</span></a>
+    <a class="row" id="gpxdl" download="Big_Pine_Lakes_Trail.gpx">⤓ Download GPX file <span class="chev">›</span></a>
   </div>
 </div>
 <script>
@@ -812,15 +842,35 @@ const mapEl = document.getElementById('map');
   mapEl.addEventListener(ev, () => { autofit = false; }, {passive: true}));
 new ResizeObserver(() => { map.invalidateSize(); if (autofit) fitTrail(); }).observe(mapEl);
 
+// ---------- inline SVG icons ----------
+function icon(name, size = 16) {
+  const paths = {
+    route: '<path d="M4 17c3.5 0 3.5-10 8-10 4 0 3 10 8 10" fill="none"/><circle cx="4" cy="17" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="17" r="1.6" fill="currentColor" stroke="none"/>',
+    up: '<path d="M7 17 17 7M9 7h8v8" fill="none"/>',
+    down: '<path d="M7 7l10 10M17 9v8H9" fill="none"/>',
+    clock: '<circle cx="12" cy="12" r="9" fill="none"/><path d="M12 7v5l3.5 2" fill="none"/>',
+    dl: '<path d="M12 3v11m-5-4 5 5 5-5M5 21h14" fill="none"/>',
+    check: '<path d="M20 6 9 17l-5-5" fill="none"/>',
+    nav: '<path d="M3.5 11.5 21 3l-8.5 17.5-2-7z" fill="currentColor" stroke="none"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" stroke="none"/>',
+    mtn: '<path d="m8 4 4.2 7.6L15 8l6 12H3L8 4z" fill="none"/>',
+    flag: '<path d="M5 21V4m0 1h12l-3 4 3 4H5" fill="none"/>'
+  };
+  return '<svg class="i" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>';
+}
+
 // ---------- stats row ----------
 const statrow = document.getElementById('statrow');
 function fmtH(h) { const hh = Math.floor(h), mm = Math.round((h-hh)*60); return hh + 'h ' + mm + 'm'; }
+function stat(ic, txt, color) {
+  return '<span' + (color ? ' style="color:' + color + '"' : '') + '><span class="ic">' + icon(ic) + '</span>' + txt + '</span>';
+}
 function idleStats() {
   statrow.innerHTML =
-    '<span><span class="ic">⇢</span>' + mi(totalM).toFixed(1) + ' mi</span>' +
-    '<span><span class="ic">↗</span>' + Math.round(ft(gain)).toLocaleString() + ' ft</span>' +
-    '<span><span class="ic">↘</span>' + Math.round(ft(loss)).toLocaleString() + ' ft</span>' +
-    '<span><span class="ic">◷</span>' + fmtH(estH) + '</span>';
+    stat('route', mi(totalM).toFixed(1) + ' mi') +
+    stat('up', Math.round(ft(gain)).toLocaleString() + ' ft') +
+    stat('down', Math.round(ft(loss)).toLocaleString() + ' ft') +
+    stat('clock', fmtH(estH));
 }
 idleStats();
 
@@ -885,13 +935,47 @@ function scrubTo(clientX) {
 svg.addEventListener('pointerdown', e => { svg.setPointerCapture(e.pointerId); scrubTo(e.clientX); });
 svg.addEventListener('pointermove', e => { if (e.buttons) scrubTo(e.clientX); });
 
-// ---------- sheet collapse ----------
+// ---------- sheet states: collapsed <-> mid <-> full ----------
 const sheet = document.getElementById('sheet');
-document.getElementById('handle').onclick = () => sheet.classList.toggle('collapsed');
-document.getElementById('title').onclick = () => sheet.classList.toggle('collapsed');
+const STATES = ['collapsed', 'mid', 'full'];
+let sheetState = 1;
+function setSheet(n) {
+  sheetState = Math.max(0, Math.min(2, n));
+  sheet.classList.toggle('collapsed', sheetState === 0);
+  sheet.classList.toggle('full', sheetState === 2);
+  if (sheetState === 2) renderStumpList();
+}
+function cycleSheet() { setSheet(sheetState === 2 ? 1 : sheetState + 1); }
+document.getElementById('handle').onclick = cycleSheet;
+document.getElementById('title').onclick = cycleSheet;
+// swipe up/down anywhere on the sheet (except the chart scrubber and buttons)
+let swipeY = null;
+sheet.addEventListener('pointerdown', e => {
+  if (e.target.closest('#chart, .pill, a, #wptlist, #stumplist')) return;
+  swipeY = e.clientY;
+}, {passive: true});
+sheet.addEventListener('pointerup', e => {
+  if (swipeY === null) return;
+  const dy = e.clientY - swipeY;
+  swipeY = null;
+  if (dy < -30) setSheet(sheetState + 1);
+  else if (dy > 30) setSheet(sheetState - 1);
+});
 
 // ---------- live location + tracking ----------
-let watching = null, me = null, acc = null, follow = false, tracking = false;
+let watching = null, me = null, acc = null, follow = false, tracking = false, lastOff = 0;
+// off-trail alert tone (AudioContext must be created from a user gesture — Start click)
+let audioCtx = null;
+function beep() {
+  if (!audioCtx) return;
+  [0, 0.25, 0.5].forEach(t => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.25, audioCtx.currentTime + t);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + t + 0.18);
+    o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + 0.2);
+  });
+}
 const locBtn = document.getElementById('locate');
 const startBtn = document.getElementById('start');
 const stumpBtn = document.getElementById('stump');
@@ -969,11 +1053,13 @@ function onFix(p) {
     doneLine.setLatLngs(latlngs.slice(0, i + 1));
     document.getElementById('progrect').setAttribute('width', xOf(done));
     statrow.innerHTML =
-      '<span><span class="ic">✓</span>' + mi(done).toFixed(1) + ' mi done</span>' +
-      '<span><span class="ic">⇢</span>' + mi(totalM - done).toFixed(1) + ' mi left</span>' +
-      (p.coords.altitude ? '<span><span class="ic">▲</span>' + Math.round(ft(p.coords.altitude)).toLocaleString() + ' ft</span>' : '') +
-      '<span style="color:' + (off < 40 ? 'var(--green)' : '#ffb04d') + '">' +
-        (off < 40 ? 'on trail' : Math.round(ft(off)) + ' ft off') + '</span>';
+      stat('check', mi(done).toFixed(1) + ' mi done') +
+      stat('flag', mi(totalM - done).toFixed(1) + ' mi left') +
+      (p.coords.altitude ? stat('mtn', Math.round(ft(p.coords.altitude)).toLocaleString() + ' ft') : '') +
+      stat('nav', off < 40 ? 'on trail' : Math.round(ft(off)) + ' ft off',
+        off < 40 ? 'var(--green)' : '#ffb04d');
+    if (off > 60 && lastOff <= 60) beep();
+    lastOff = off;
   }
 }
 function onErr(e) {
@@ -1000,18 +1086,73 @@ startBtn.onclick = () => {
   tracking = !tracking;
   startBtn.classList.toggle('tracking', tracking);
   if (tracking) {
-    startBtn.textContent = '■ End';
+    if (!audioCtx) try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+    startBtn.innerHTML = icon('stop', 18) + 'End';
     follow = true; startWatch();
     statrow.innerHTML = '<span>Waiting for GPS…</span>';
   } else {
-    startBtn.textContent = '➤ Start';
+    startBtn.innerHTML = icon('nav', 18) + 'Start';
     follow = false;
     doneLine.setLatLngs([]);
     document.getElementById('progrect').setAttribute('width', 0);
     idleStats(); stopWatchIfIdle();
   }
 };
+startBtn.innerHTML = icon('nav', 18) + 'Start';
+locBtn.innerHTML = icon('nav', 22);
 map.on('dragstart', () => { follow = false; });
+
+// ---------- extras panel ----------
+const wptIcons = {'falls': '💦', 'waterfall': '💦', 'lake': '🏞', 'cabin': '🏚', 'rest': '🚻', 'turn': '↩️'};
+document.getElementById('wptlist').innerHTML = data.waypoints.map((w, i) => {
+  const key = Object.keys(wptIcons).find(k => w.name.toLowerCase().includes(k));
+  return '<div class="row" data-i="' + i + '">' + (key ? wptIcons[key] + ' ' : '📍 ') + w.name + '<span class="chev">›</span></div>';
+}).join('');
+document.getElementById('wptlist').onclick = e => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  const w = data.waypoints[+row.dataset.i];
+  setSheet(1);
+  map.flyTo([w.lat, w.lon], 16);
+};
+function renderStumpList() {
+  const el = document.getElementById('stumplist');
+  if (!stumps.length) { el.innerHTML = '<div class="row dim">No stumps logged yet</div>'; return; }
+  el.innerHTML = stumps.map((s, i) =>
+    '<div class="row" data-i="' + i + '">🪵 Stump #' + (i+1) + ' · ' +
+    new Date(s.t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + '<span class="chev">›</span></div>').join('');
+  el.onclick = e => {
+    const row = e.target.closest('.row');
+    if (!row) return;
+    const s = stumps[+row.dataset.i];
+    setSheet(1);
+    map.flyTo([s.lat, s.lon], 16);
+  };
+}
+document.getElementById('drive').href =
+  'https://www.google.com/maps/dir/?api=1&destination=' + latlngs[0][0] + ',' + latlngs[0][1];
+document.getElementById('weather').href =
+  'https://forecast.weather.gov/MapClick.php?lat=' + latlngs[0][0] + '&lon=' + latlngs[0][1];
+document.getElementById('overviewrow').onclick = () => {
+  const o = document.getElementById('overview');
+  o.style.display = o.style.display === 'none' ? 'block' : 'none';
+};
+document.getElementById('shareloc').onclick = () => {
+  const ll = me ? [me.getLatLng().lat, me.getLatLng().lng] : [map.getCenter().lat, map.getCenter().lng];
+  const url = 'https://maps.google.com/?q=' + ll[0].toFixed(5) + ',' + ll[1].toFixed(5);
+  if (navigator.share) navigator.share({title: 'My location on Big Pine Lakes Trail', url}).catch(() => {});
+  else { navigator.clipboard?.writeText(url); showToast('Location link copied'); }
+};
+{
+  let gpx = '<?xml version="1.0"?>\n<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="big-pine-map">\n';
+  data.waypoints.forEach(w => {
+    gpx += '<wpt lat="' + w.lat + '" lon="' + w.lon + '"><name>' + w.name.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</name></wpt>\n';
+  });
+  gpx += '<trk><name>Big Pine Lakes Trail</name><trkseg>\n';
+  pts.forEach(p => { gpx += '<trkpt lat="' + p[0] + '" lon="' + p[1] + '"><ele>' + (p[2] || 0) + '</ele></trkpt>\n'; });
+  gpx += '</trkseg></trk>\n</gpx>';
+  document.getElementById('gpxdl').href = URL.createObjectURL(new Blob([gpx], {type: 'application/gpx+xml'}));
+}
 
 // ---------- offline support ----------
 const TILE_CACHE = 'bp-tiles-v1', APP_CACHE = 'bp-app-v1';
@@ -1051,19 +1192,20 @@ offBtn.onclick = async () => {
           if (r.ok) { await tiles.put(u, r); done++; } else failed++;
         } catch { failed++; }
       }));
-      offBtn.textContent = '⬇ ' + Math.round((done + failed) / urls.length * 100) + '%';
+      offBtn.innerHTML = icon('dl', 18) + Math.round((done + failed) / urls.length * 100) + '%';
     }
-    offBtn.textContent = failed > urls.length * 0.1 ? '⚠ Partial download' : '✓ Downloaded';
+    offBtn.innerHTML = failed > urls.length * 0.1 ? '⚠ Partial download' : icon('check', 18) + 'Downloaded';
     offBtn.classList.add('done');
   } catch (e) {
-    offBtn.textContent = '⚠ Failed — retry';
+    offBtn.innerHTML = '⚠ Failed — retry';
     offBtn.disabled = false;
   }
 };
+offBtn.innerHTML = icon('dl', 18) + 'Download offline';
 caches.has(TILE_CACHE).then(async has => {
   if (!has) return;
   const keys = await (await caches.open(TILE_CACHE)).keys();
-  if (keys.length > 50) { offBtn.textContent = '✓ Downloaded'; offBtn.classList.add('done'); }
+  if (keys.length > 50) { offBtn.innerHTML = icon('check', 18) + 'Downloaded'; offBtn.classList.add('done'); }
 });
 </script>
 </body>
