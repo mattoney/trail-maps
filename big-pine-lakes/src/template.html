@@ -769,22 +769,32 @@ offBtn.onclick = async () => {
     await app.add(location.pathname).catch(() => {});
     const tiles = await caches.open(TILE_CACHE);
     const urls = tileList();
-    let done = 0, failed = 0;
     const CHUNK = 8;
-    for (let i = 0; i < urls.length; i += CHUNK) {
-      await Promise.all(urls.slice(i, i + CHUNK).map(async u => {
-        if (await tiles.match(u)) { done++; return; }
-        try {
-          const r = await fetch(u);
-          if (r.ok) { await tiles.put(u, r); done++; } else failed++;
-        } catch { failed++; }
-      }));
-      offBtn.innerHTML = icon('dl', 18) + Math.round((done + failed) / urls.length * 100) + '%';
+    let failed = 0;
+    for (let pass = 0; pass < 2; pass++) {
+      let done = 0;
+      failed = 0;
+      for (let i = 0; i < urls.length; i += CHUNK) {
+        await Promise.all(urls.slice(i, i + CHUNK).map(async u => {
+          if (await tiles.match(u)) { done++; return; }
+          try {
+            const r = await fetch(u);
+            if (r.ok) { await tiles.put(u, r); done++; } else failed++;
+          } catch { failed++; }
+        }));
+        offBtn.innerHTML = icon('dl', 18) + Math.round((done + failed) / urls.length * 100) + '%';
+      }
+      if (!failed) break;
     }
-    offBtn.innerHTML = failed > urls.length * 0.1 ? '⚠ Partial download' : icon('check', 18) + 'Downloaded';
-    offBtn.classList.add('done');
+    if (failed) {
+      offBtn.innerHTML = icon('dl', 18) + 'Almost done — tap to finish';
+      offBtn.disabled = false;
+    } else {
+      offBtn.innerHTML = icon('check', 18) + 'Downloaded';
+      offBtn.classList.add('done');
+    }
   } catch (e) {
-    offBtn.innerHTML = '⚠ Failed — retry';
+    offBtn.innerHTML = icon('dl', 18) + 'Tap to retry download';
     offBtn.disabled = false;
   }
 };
@@ -792,7 +802,13 @@ offBtn.innerHTML = icon('dl', 18) + 'Download offline';
 caches.has(TILE_CACHE).then(async has => {
   if (!has) return;
   const keys = await (await caches.open(TILE_CACHE)).keys();
-  if (keys.length > 50) { offBtn.innerHTML = icon('check', 18) + 'Downloaded'; offBtn.classList.add('done'); }
+  const total = tileList().length;
+  if (keys.length >= total) {
+    offBtn.innerHTML = icon('check', 18) + 'Downloaded';
+    offBtn.classList.add('done');
+  } else if (keys.length > 0) {
+    offBtn.innerHTML = icon('dl', 18) + 'Almost done — tap to finish';
+  }
 });
 </script>
 </body>
