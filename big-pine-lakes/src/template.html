@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Big Pine Lakes Trail</title>
+<style>
+__LEAFLET_CSS__
+</style>
+<style>
+  :root{--sheet:#161a16;--sheet2:#22271f;--txt:#f2f4ef;--dim:#9aa294;--green:#b6f26a;--track:#7a3b2e}
+  html{height:100%;overflow:hidden}
+  body{margin:0;position:fixed;inset:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;
+    background:#000;overscroll-behavior:none;touch-action:manipulation}
+  #map{position:absolute;inset:0}
+  .fab{position:absolute;z-index:1000;width:52px;height:52px;border-radius:50%;border:none;
+    background:rgba(22,26,22,.92);color:#fff;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,.4);cursor:pointer}
+  #locate{right:14px}
+  #locate.on{color:var(--green)}
+  #stump{right:14px;font-size:24px}
+  #toast{position:absolute;left:50%;transform:translateX(-50%);z-index:1200;background:var(--sheet2);
+    color:var(--txt);padding:10px 18px;border-radius:22px;font-size:15px;display:none;
+    box-shadow:0 3px 10px rgba(0,0,0,.4);white-space:nowrap}
+  .stump-pin{width:34px;height:34px;border-radius:50%;background:var(--sheet);
+    border:1.5px solid var(--green);display:flex;align-items:center;justify-content:center;
+    font-size:18px;line-height:1;
+    box-shadow:0 0 0 3px rgba(182,242,106,.18),0 0 14px rgba(182,242,106,.55),0 2px 6px rgba(0,0,0,.45)}
+  #stumpmodal,#confirmmodal{position:absolute;inset:0;z-index:1300;background:rgba(0,0,0,.55);display:none;
+    align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+  #stumpmodal.show,#confirmmodal.show{display:flex}
+  #confirmcard{background:var(--sheet);color:var(--txt);border-radius:20px;padding:22px 20px;width:min(300px,82vw);
+    box-shadow:0 10px 40px rgba(0,0,0,.6)}
+  #confirmmsg{margin:0 0 18px;font-size:16px;line-height:1.4}
+  #confirmbtns{display:flex;gap:10px}
+  #confirmbtns button{flex:1;border:none;border-radius:22px;padding:12px 0;font-size:15px;font-weight:600;cursor:pointer}
+  #confirmno{background:var(--sheet2);color:var(--txt)}
+  #confirmyes{background:#e05b4d;color:#fff}
+  #photoview{position:absolute;inset:0;z-index:1400;background:rgba(0,0,0,.92);display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:16px}
+  #photoview.show{display:flex}
+  #photoimg{max-width:94vw;max-height:78vh;border-radius:12px}
+  #photobtns{display:flex;gap:12px}
+  #photobtns button{border:none;border-radius:22px;padding:12px 28px;font-size:15px;font-weight:600;cursor:pointer}
+  #photodel{background:#e05b4d;color:#fff}
+  #photoclose{background:var(--sheet2);color:var(--txt)}
+  .pp-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .pp-thumbs img{width:52px;height:52px;object-fit:cover;border-radius:8px;cursor:pointer}
+  .pp-add{display:inline-block;margin-top:8px;font-weight:600}
+  #stumpcard{background:var(--sheet);color:var(--txt);border-radius:20px;padding:22px 20px;width:min(320px,86vw);
+    box-shadow:0 10px 40px rgba(0,0,0,.6);-webkit-user-select:none;user-select:none}
+  #stumpcard h2{margin:0 0 16px;font-size:20px}
+  .seg{display:flex;background:var(--sheet2);border-radius:14px;padding:4px;gap:4px;margin-bottom:16px}
+  .seg button{flex:1;border:none;background:none;color:var(--dim);font-size:15px;font-weight:600;
+    padding:10px 0;border-radius:11px;cursor:pointer}
+  .seg button.on{background:#3a4235;color:var(--txt)}
+  #stumprate{display:flex;gap:8px;justify-content:space-between;margin-bottom:20px}
+  #stumprate button{flex:1;aspect-ratio:1;border-radius:50%;border:1.5px solid #3a4235;background:none;
+    color:var(--dim);font-size:16px;font-weight:700;cursor:pointer}
+  #stumprate button.on{background:var(--green);border-color:var(--green);color:#0c1405}
+  #stumpbtns{display:flex;gap:10px}
+  #stumpbtns button{flex:1;border:none;border-radius:22px;padding:13px 0;font-size:15px;font-weight:600;cursor:pointer}
+  #stumpcancel{background:var(--sheet2);color:var(--txt)}
+  #stumpsave{background:var(--green);color:#0c1405}
+  #stumpsave:disabled{opacity:.35}
+  /* bottom sheet */
+  #sheet{position:absolute;left:0;right:0;bottom:0;z-index:1100;background:var(--sheet);color:var(--txt);
+    border-radius:22px 22px 0 0;padding:6px 20px calc(14px + env(safe-area-inset-bottom));
+    box-shadow:0 -6px 24px rgba(0,0,0,.5);
+    height:min(86svh,760px);box-sizing:border-box;display:flex;flex-direction:column;
+    will-change:transform;touch-action:none;
+    -webkit-user-select:none;user-select:none}
+  #body{flex:1;min-height:0;overflow:hidden}
+  #sheet.full #body{overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain}
+  #handle{width:44px;height:5px;border-radius:3px;background:#555;margin:6px auto 10px;cursor:pointer}
+  #title{font-size:24px;font-weight:700;margin:0 0 10px}
+  #statrow{display:flex;gap:13px;font-size:14px;color:var(--txt);flex-wrap:wrap;margin-bottom:6px}
+  #statrow span{white-space:nowrap}
+  #statrow .ic{color:var(--dim);margin-right:4px}
+  #chartwrap{position:relative;margin:10px 0 2px;display:block}
+  #chart{width:100%;height:130px;display:block;touch-action:none}
+  #chartlabels{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:2px}
+  #scrubinfo{position:absolute;top:-8px;left:0;transform:translate(-50%,-100%);background:var(--sheet2);
+    color:var(--txt);font-size:12px;padding:3px 8px;border-radius:8px;white-space:nowrap;display:none;pointer-events:none}
+  #btnrow{display:flex;gap:12px;margin-top:14px}
+  .pill{flex:1;border:none;border-radius:28px;padding:15px 0;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.01em;transition:filter .15s}
+  .pill:active{filter:brightness(1.2)}
+  .i{flex:none;vertical-align:-2px}
+  .ic .i{vertical-align:-2.5px}
+  #statrow .ic{margin-right:5px}
+  #offline{background:var(--sheet2);color:var(--txt);border:1px solid #333a30}
+  #offline.done{color:var(--green)}
+  #start{background:var(--green);color:#0c1405}
+  #start.tracking{background:#e05b4d;color:#fff}
+  #extras{padding-bottom:8px}
+  .sect{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 2px;
+    border-bottom:1px solid #2b2f2a;font-size:16px;color:var(--txt);text-decoration:none;cursor:pointer}
+  .row .chev{color:var(--dim);font-size:20px}
+  .row.dim{color:var(--dim)}
+  .wpt-label{background:rgba(255,255,255,.92);border:1px solid #888;border-radius:6px;padding:1px 5px;
+    font-size:11px;font-weight:600;color:#222;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<button class="fab" id="locate" title="My location">➤</button>
+<button class="fab" id="stump" title="Stump sighting">🪵</button>
+<div id="toast"></div>
+<input type="file" id="photoinput" accept="image/*" multiple style="display:none">
+<div id="photoview"><img id="photoimg" alt=""><div id="photobtns">
+  <button id="photodel">Delete</button><button id="photoclose">Close</button></div></div>
+<div id="confirmmodal"><div id="confirmcard">
+  <p id="confirmmsg"></p>
+  <div id="confirmbtns"><button id="confirmno">Cancel</button><button id="confirmyes">Remove</button></div>
+</div></div>
+<div id="stumpmodal">
+  <div id="stumpcard">
+    <h2>🪵 Log this stump</h2>
+    <div class="seg" id="stumpsize">
+      <button data-v="big" class="on">Big stump</button>
+      <button data-v="baby">Baby stump</button>
+    </div>
+    <div id="stumprate">
+      <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
+      <button data-v="4">4</button><button data-v="5">5</button>
+    </div>
+    <div id="stumpbtns">
+      <button id="stumpcancel">Cancel</button>
+      <button id="stumpsave" disabled>Log stump</button>
+    </div>
+  </div>
+</div>
+<div id="sheet">
+  <div id="handle"></div>
+  <h1 id="title">Big Pine Lakes Trail</h1>
+  <div id="body">
+  <div id="statrow"></div>
+  <div id="chartwrap">
+    <div id="scrubinfo"></div>
+    <svg id="chart" preserveAspectRatio="none"></svg>
+  </div>
+  <div id="chartlabels"></div>
+  <div id="btnrow">
+    <button class="pill" id="offline"></button>
+    <button class="pill" id="start"></button>
+  </div>
+  <div id="extras">
+    <div class="sect">Waypoints</div>
+    <div id="wptlist"></div>
+    <div class="sect">🪵 Stump log</div>
+    <div id="stumplist"><div class="row dim">No stumps logged yet</div></div>
+    <div class="sect">More</div>
+    <div class="row" id="overviewrow">🗺 Trail overview <span class="chev">›</span></div>
+    <div id="overview" style="display:none;font-size:14px;color:var(--dim);line-height:1.55;padding:4px 2px 12px;border-bottom:1px solid #2b2f2a">
+      Out-and-back along North Fork Big Pine Creek: waterfalls and the Lon Chaney cabin low down,
+      then glacial First–Third Lakes (that milky turquoise is rock flour from Palisade Glacier),
+      with the spur to Fifth Lake near the top. Roughly 7,800–11,200 ft, so pace the altitude.
+      Overnights need an Inyo NF wilderness permit; day hikes don't. No water past the lakes — filter there.
+    </div>
+    <a class="row" id="weather" target="_blank" rel="noopener">🌤 Trail conditions / forecast (NOAA) <span class="chev">›</span></a>
+    <div class="row" id="shareloc">📡 Share my location <span class="chev">›</span></div>
+    <a class="row" id="drive" target="_blank" rel="noopener">🚗 Driving directions to trailhead <span class="chev">›</span></a>
+    <a class="row" id="gpxdl" download="Big_Pine_Lakes_Trail.gpx">⤓ Download GPX file <span class="chev">›</span></a>
+  </div>
+  </div>
+</div>
+<script>
+__LEAFLET_JS__
+</script>
+<script id="trail-data" type="application/json">__TRAIL_JSON__</script>
+<script>
+const data = JSON.parse(document.getElementById('trail-data').textContent);
+const pts = data.track;
+const latlngs = pts.map(p => [p[0], p[1]]);
+
+// ---------- geometry ----------
+const R = 6371000;
+function hav(a, b) {
+  const dLat = (b[0]-a[0]) * Math.PI/180, dLon = (b[1]-a[1]) * Math.PI/180;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a[0]*Math.PI/180) * Math.cos(b[0]*Math.PI/180) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+const cum = [0];
+for (let i = 1; i < pts.length; i++) cum.push(cum[i-1] + hav(pts[i-1], pts[i]));
+const totalM = cum[cum.length-1];
+
+// smoothed elevation (reduce GPS noise before computing gain/loss)
+const rawEle = pts.map(p => p[2] || 0);
+const ele = rawEle.map((_, i) => {
+  let s = 0, n = 0;
+  for (let j = Math.max(0, i-3); j <= Math.min(rawEle.length-1, i+3); j++) { s += rawEle[j]; n++; }
+  return s / n;
+});
+let gain = 0, loss = 0, anchor = ele[0];
+for (let i = 1; i < ele.length; i++) {
+  const d = ele[i] - anchor;
+  if (d > 3) { gain += d; anchor = ele[i]; }
+  else if (d < -3) { loss -= d; anchor = ele[i]; }
+}
+const eleMin = Math.min(...ele), eleMax = Math.max(...ele);
+const mi = m => m / 1609.34, ft = m => m * 3.28084;
+// Naismith: 3 mph + 1 h per 2000 ft of ascent
+const estH = mi(totalM) / 3 + ft(gain) / 2000;
+
+// ---------- map ----------
+const topo = L.tileLayer('https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
+  {maxZoom: 17, maxNativeZoom: 16, attribution: '© OpenStreetMap, © OpenTopoMap'});
+topo.on('tileerror', async e => {
+  try {
+    const r = await caches.match(e.tile.src);
+    if (r) e.tile.src = URL.createObjectURL(await r.blob());
+  } catch {}
+});
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {maxZoom: 19, attribution: '© OpenStreetMap'});
+const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  {maxZoom: 19, attribution: '© Esri'});
+
+const map = L.map('map', {layers: [topo], zoomControl: false});
+window._map = map;
+L.control.layers({'Topo': topo, 'Streets': osm, 'Satellite': sat}, null, {position: 'topright'}).addTo(map);
+
+L.polyline(latlngs, {color: '#fff', weight: 7, opacity: .8}).addTo(map);
+const doneLine = L.polyline([], {color: '#2e7d32', weight: 4}).addTo(map);
+const line = L.polyline(latlngs, {color: '#e0245e', weight: 4}).addTo(map);
+L.circleMarker(latlngs[0], {radius: 8, color: '#fff', fillColor: '#0b8043', fillOpacity: 1, weight: 2})
+  .addTo(map).bindPopup('Trailhead');
+data.waypoints.forEach((w, i) => {
+  L.circleMarker([w.lat, w.lon], {radius: 7, color: '#fff', fillColor: '#1a4fd8', fillOpacity: 1, weight: 2})
+    .addTo(map)
+    .bindTooltip(w.name, {permanent: true, direction: 'top', offset: [0, -10], className: 'wpt-label'})
+    .bindPopup(() => '<b>' + w.name + '</b><br>' + photoLinks('wpt:' + i));
+});
+
+function fitTrail() {
+  const vis = window._sheetVisible || Math.round(window.innerHeight * 0.45);
+  map.fitBounds(line.getBounds(), {paddingTopLeft: [30, 30], paddingBottomRight: [30, vis + 20]});
+}
+fitTrail();
+let autofit = true;
+const mapEl = document.getElementById('map');
+['pointerdown', 'wheel', 'touchstart'].forEach(ev =>
+  mapEl.addEventListener(ev, () => { autofit = false; }, {passive: true}));
+new ResizeObserver(() => { map.invalidateSize(); if (autofit) fitTrail(); }).observe(mapEl);
+
+// ---------- inline SVG icons ----------
+function icon(name, size = 16) {
+  const paths = {
+    route: '<path d="M4 17c3.5 0 3.5-10 8-10 4 0 3 10 8 10" fill="none"/><circle cx="4" cy="17" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="17" r="1.6" fill="currentColor" stroke="none"/>',
+    up: '<path d="M7 17 17 7M9 7h8v8" fill="none"/>',
+    down: '<path d="M7 7l10 10M17 9v8H9" fill="none"/>',
+    clock: '<circle cx="12" cy="12" r="9" fill="none"/><path d="M12 7v5l3.5 2" fill="none"/>',
+    dl: '<path d="M12 3v11m-5-4 5 5 5-5M5 21h14" fill="none"/>',
+    check: '<path d="M20 6 9 17l-5-5" fill="none"/>',
+    nav: '<path d="M3.5 11.5 21 3l-8.5 17.5-2-7z" fill="currentColor" stroke="none"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" stroke="none"/>',
+    mtn: '<path d="m8 4 4.2 7.6L15 8l6 12H3L8 4z" fill="none"/>',
+    flag: '<path d="M5 21V4m0 1h12l-3 4 3 4H5" fill="none"/>'
+  };
+  return '<svg class="i" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>';
+}
+
+// ---------- stats row ----------
+const statrow = document.getElementById('statrow');
+function fmtH(h) { const hh = Math.floor(h), mm = Math.round((h-hh)*60); return hh + 'h ' + mm + 'm'; }
+function stat(ic, txt, color) {
+  return '<span' + (color ? ' style="color:' + color + '"' : '') + '><span class="ic">' + icon(ic) + '</span>' + txt + '</span>';
+}
+function idleStats() {
+  statrow.innerHTML =
+    stat('route', mi(totalM).toFixed(1) + ' mi') +
+    stat('up', Math.round(ft(gain)).toLocaleString() + ' ft') +
+    stat('down', Math.round(ft(loss)).toLocaleString() + ' ft') +
+    stat('clock', fmtH(estH));
+}
+idleStats();
+
+// ---------- elevation chart ----------
+const svg = document.getElementById('chart');
+const W = 1000, H = 260;
+svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+const pad = (eleMax - eleMin) * 0.12;
+const yOf = e => H - 4 - (e - eleMin) / (eleMax - eleMin + pad) * (H - 12);
+const xOf = d => d / totalM * W;
+const step = Math.max(1, Math.floor(pts.length / 400));
+let lineD = '', areaD = 'M0 ' + H + ' ';
+for (let i = 0; i < pts.length; i += step) {
+  const x = xOf(cum[i]).toFixed(1), y = yOf(ele[i]).toFixed(1);
+  lineD += (i ? 'L' : 'M') + x + ' ' + y;
+  areaD += 'L' + x + ' ' + y + ' ';
+}
+const xe = xOf(cum[pts.length-1]).toFixed(1), ye = yOf(ele[pts.length-1]).toFixed(1);
+lineD += 'L' + xe + ' ' + ye; areaD += 'L' + xe + ' ' + ye + ' L' + W + ' ' + H + ' Z';
+svg.innerHTML =
+  '<defs><clipPath id="prog"><rect id="progrect" x="0" y="0" width="0" height="' + H + '"/></clipPath></defs>' +
+  '<path d="' + areaD + '" fill="#2a2f28"/>' +
+  '<path d="' + areaD + '" fill="var(--track)" clip-path="url(#prog)"/>' +
+  '<path d="' + lineD + '" fill="none" stroke="#fff" stroke-width="2.5"/>' +
+  '<line id="scrubline" x1="0" y1="0" x2="0" y2="' + H + '" stroke="#fff" stroke-width="1.5" opacity="0" stroke-dasharray="4 4"/>' +
+  '<circle id="scrubdot" r="6" fill="var(--green)" stroke="#0c1405" stroke-width="2" opacity="0"/>';
+document.getElementById('chartlabels').innerHTML =
+  '<span>0 mi · ' + Math.round(ft(ele[0])).toLocaleString() + ' ft</span>' +
+  '<span>peak ' + Math.round(ft(eleMax)).toLocaleString() + ' ft</span>' +
+  '<span>' + mi(totalM).toFixed(1) + ' mi</span>';
+
+// index of nearest cumulative distance (binary search)
+function idxAtDist(d) {
+  let lo = 0, hi = cum.length - 1;
+  while (lo < hi) { const m = (lo + hi) >> 1; cum[m] < d ? lo = m + 1 : hi = m; }
+  return lo;
+}
+// scrubbing
+const scrubMarker = L.circleMarker(latlngs[0], {radius: 8, color: '#0c1405', fillColor: '#b6f26a', fillOpacity: 1, weight: 2});
+const scrubline = () => document.getElementById('scrubline');
+const scrubdot = () => document.getElementById('scrubdot');
+const info = document.getElementById('scrubinfo');
+let scrubTimer = null;
+function scrubTo(clientX) {
+  const r = svg.getBoundingClientRect();
+  const frac = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  const i = idxAtDist(frac * totalM);
+  const x = xOf(cum[i]), y = yOf(ele[i]);
+  scrubline().setAttribute('x1', x); scrubline().setAttribute('x2', x); scrubline().setAttribute('opacity', 1);
+  scrubdot().setAttribute('cx', x); scrubdot().setAttribute('cy', y); scrubdot().setAttribute('opacity', 1);
+  info.style.display = 'block';
+  info.style.left = (frac * r.width) + 'px';
+  info.textContent = mi(cum[i]).toFixed(1) + ' mi · ' + Math.round(ft(ele[i])).toLocaleString() + ' ft';
+  scrubMarker.setLatLng(latlngs[i]);
+  if (!map.hasLayer(scrubMarker)) scrubMarker.addTo(map);
+  clearTimeout(scrubTimer);
+  scrubTimer = setTimeout(() => {
+    scrubline().setAttribute('opacity', 0); scrubdot().setAttribute('opacity', 0);
+    info.style.display = 'none'; map.removeLayer(scrubMarker);
+  }, 4000);
+}
+svg.addEventListener('pointerdown', e => { svg.setPointerCapture(e.pointerId); scrubTo(e.clientX); });
+svg.addEventListener('pointermove', e => { if (e.buttons) scrubTo(e.clientX); });
+
+// ---------- draggable bottom sheet: collapsed <-> mid <-> full ----------
+// The sheet is a fixed-height panel translated down; drag follows the finger,
+// release animates to the nearest snap point. Handle/title never scroll away.
+const sheet = document.getElementById('sheet');
+const sheetBody = document.getElementById('body');
+const btnrow = document.getElementById('btnrow');
+let sheetState = 1, curY = 0;
+
+const sheetH = () => sheet.offsetHeight;
+const titleEl = document.getElementById('title');
+const collVisible = () => titleEl.offsetTop + titleEl.offsetHeight + 16;
+const midVisible = () => btnrow.offsetTop + btnrow.offsetHeight + 22;
+const snapY = s => s === 2 ? 0 : sheetH() - (s === 1 ? midVisible() : collVisible());
+
+function applyY(y, animate) {
+  curY = y;
+  sheet.style.transition = animate ? 'transform .3s cubic-bezier(.22,.9,.3,1)' : 'none';
+  sheet.style.transform = 'translateY(' + y + 'px)';
+  syncFabs();
+}
+function setSheet(n, animate = true) {
+  window._sheetVisible = sheetH() - snapY(1);
+  sheetState = Math.max(0, Math.min(2, n));
+  sheet.classList.toggle('full', sheetState === 2);
+  if (sheetState === 2) renderStumpList();
+  else sheetBody.scrollTop = 0;
+  applyY(snapY(sheetState), animate);
+}
+function cycleSheet() { setSheet(sheetState === 2 ? 1 : sheetState + 1); }
+document.getElementById('handle').onclick = cycleSheet;
+document.getElementById('title').onclick = cycleSheet;
+
+let dragStartY = null, dragStartCur = 0, dragging = false;
+sheet.addEventListener('pointerdown', e => {
+  if (e.target.closest('#chart, .pill')) return;
+  if (sheetState === 2 && e.target.closest('#body') && sheetBody.scrollTop > 2) return;
+  dragStartY = e.clientY; dragStartCur = curY; dragging = false;
+}, {passive: true});
+sheet.addEventListener('pointermove', e => {
+  if (dragStartY === null) return;
+  const dy = e.clientY - dragStartY;
+  if (!dragging) {
+    if (Math.abs(dy) < 8) return;
+    // in full state, an upward move over the scrollable body is a scroll, not a drag
+    if (sheetState === 2 && dy < 0 && e.target.closest('#body')) { dragStartY = null; return; }
+    dragging = true;
+    try { sheet.setPointerCapture(e.pointerId); } catch {}
+  }
+  applyY(Math.max(0, Math.min(sheetH() - collVisible(), dragStartCur + dy)), false);
+}, {passive: true});
+function endDrag(e) {
+  if (dragStartY === null) return;
+  const wasDragging = dragging;
+  dragStartY = null; dragging = false;
+  if (!wasDragging) return;
+  // momentum nudge: snap in the direction of release movement
+  const ys = [snapY(0), snapY(1), snapY(2)];
+  let best = 0, bd = Infinity;
+  ys.forEach((y, s) => { const d = Math.abs(curY - y); if (d < bd) { bd = d; best = s; } });
+  setSheet(best);
+  // a real drag shouldn't also fire the tap it started on
+  const eat = c => { c.stopPropagation(); c.preventDefault(); };
+  document.addEventListener('click', eat, true);
+  setTimeout(() => document.removeEventListener('click', eat, true), 400);
+}
+['pointerup', 'pointercancel'].forEach(ev => sheet.addEventListener(ev, endDrag, {passive: true}));
+// iOS: in full state the body has touch-action:pan-y, so Safari claims downward
+// drags as scroll attempts and cancels our pointer stream. When the list is
+// already at the top, preventDefault the downward touchmove so the drag stays ours.
+let bodyTouchY = null;
+sheetBody.addEventListener('touchstart', e => { bodyTouchY = e.touches[0].clientY; }, {passive: true});
+sheetBody.addEventListener('touchmove', e => {
+  if (bodyTouchY === null) return;
+  const dy = e.touches[0].clientY - bodyTouchY;
+  if (sheetState === 2 && dy > 0 && sheetBody.scrollTop <= 0 && e.cancelable) e.preventDefault();
+}, {passive: false});
+sheetBody.addEventListener('touchend', () => { bodyTouchY = null; }, {passive: true});
+
+// ---------- live location + tracking ----------
+let watching = null, me = null, acc = null, follow = false, tracking = false, lastOff = 0;
+// off-trail alert tone (AudioContext must be created from a user gesture — Start click)
+let audioCtx = null;
+function beep() {
+  if (!audioCtx) return;
+  [0, 0.25, 0.5].forEach(t => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.25, audioCtx.currentTime + t);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + t + 0.18);
+    o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + 0.2);
+  });
+}
+const locBtn = document.getElementById('locate');
+const startBtn = document.getElementById('start');
+const stumpBtn = document.getElementById('stump');
+const toast = document.getElementById('toast');
+function syncFabs() {
+  const vis = Math.min(sheetH() - curY, sheetH() - snapY(1));
+  locBtn.style.bottom = (vis + 18) + 'px';
+  stumpBtn.style.bottom = (vis + 82) + 'px';
+  toast.style.bottom = (vis + 18) + 'px';
+}
+new ResizeObserver(() => setSheet(sheetState, false)).observe(sheet);
+setSheet(1, false);
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { toast.style.display = 'none'; }, 2200);
+}
+
+// ---------- confirm dialog ----------
+const confirmModal = document.getElementById('confirmmodal');
+let confirmCb = null;
+function askConfirm(msg, cb) {
+  document.getElementById('confirmmsg').textContent = msg;
+  confirmCb = cb;
+  confirmModal.classList.add('show');
+}
+document.getElementById('confirmno').onclick = () => { confirmModal.classList.remove('show'); confirmCb = null; };
+document.getElementById('confirmyes').onclick = () => {
+  confirmModal.classList.remove('show');
+  if (confirmCb) confirmCb();
+  confirmCb = null;
+};
+
+// ---------- photo store (IndexedDB — photos are too big for localStorage) ----------
+let _db = null;
+function pdb() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('bp-photos', 1);
+    r.onupgradeneeded = () => {
+      const s = r.result.createObjectStore('photos', {keyPath: 'id'});
+      s.createIndex('owner', 'owner');
+    };
+    r.onsuccess = () => { _db = r.result; res(_db); };
+    r.onerror = () => rej(r.error);
+  });
+}
+const tx = (mode, fn) => pdb().then(d => new Promise((res, rej) => {
+  const t = d.transaction('photos', mode), req = fn(t.objectStore('photos'));
+  t.oncomplete = () => res(req && req.result);
+  t.onerror = () => rej(t.error);
+}));
+const getPhotos = owner => tx('readonly', s => s.index('owner').getAll(owner));
+const delPhoto = id => tx('readwrite', s => s.delete(id));
+async function delPhotosByOwner(owner) {
+  const ps = await getPhotos(owner) || [];
+  for (const p of ps) await delPhoto(p.id);
+}
+async function shrink(file) {
+  const bmp = await createImageBitmap(file);
+  const sc = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(res => c.toBlob(res, 'image/jpeg', 0.8));
+}
+const photoInput = document.getElementById('photoinput');
+let photoTarget = null;
+window._addPhoto = owner => { photoTarget = owner; photoInput.click(); };
+photoInput.onchange = async () => {
+  if (!photoTarget || !photoInput.files.length) return;
+  for (const f of photoInput.files) {
+    const blob = await shrink(f).catch(() => f);
+    await tx('readwrite', s => s.put({id: Date.now() + Math.random(), owner: photoTarget, blob, t: Date.now()}));
+  }
+  showToast('📷 ' + photoInput.files.length + ' photo' + (photoInput.files.length > 1 ? 's' : '') + ' saved');
+  document.querySelectorAll('.pp-thumbs[data-owner="' + photoTarget + '"]').forEach(fillThumbs);
+  photoInput.value = ''; photoTarget = null;
+};
+// fullscreen viewer
+const pview = document.getElementById('photoview'), pimg = document.getElementById('photoimg');
+let viewingId = null, viewingOwner = null;
+async function viewPhoto(id, owner) {
+  const ps = await getPhotos(owner) || [];
+  const p = ps.find(x => x.id === id);
+  if (!p) return;
+  viewingId = id; viewingOwner = owner;
+  pimg.src = URL.createObjectURL(p.blob);
+  pview.classList.add('show');
+}
+document.getElementById('photoclose').onclick = () => { pview.classList.remove('show'); URL.revokeObjectURL(pimg.src); };
+document.getElementById('photodel').onclick = () => askConfirm('Delete this photo?', async () => {
+  await delPhoto(viewingId);
+  pview.classList.remove('show');
+  document.querySelectorAll('.pp-thumbs[data-owner="' + viewingOwner + '"]').forEach(fillThumbs);
+});
+async function fillThumbs(el) {
+  const owner = el.dataset.owner;
+  const ps = await getPhotos(owner) || [];
+  el.innerHTML = '';
+  ps.forEach(p => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(p.blob);
+    img.onclick = () => viewPhoto(p.id, owner);
+    el.appendChild(img);
+  });
+}
+map.on('popupopen', e => e.popup.getElement().querySelectorAll('.pp-thumbs').forEach(fillThumbs));
+const photoLinks = owner =>
+  '<a class="pp-add" href="#" onclick="window._addPhoto(\'' + owner + '\');return false">📷 Add photo</a>' +
+  '<div class="pp-thumbs" data-owner="' + owner + '"></div>';
+
+// ---------- stump sightings ----------
+let stumps = [];
+try { stumps = JSON.parse(localStorage.getItem('bp-stumps') || '[]'); } catch {}
+// stable ids so photos survive list reordering
+let migrated = false;
+stumps.forEach(s => { if (!s.id) { s.id = String(s.t || Date.now()) + Math.floor(Math.random() * 1e4); migrated = true; } });
+if (migrated) localStorage.setItem('bp-stumps', JSON.stringify(stumps));
+const stumpLabel = s =>
+  (s.size === 'baby' ? 'Baby stump' : s.size === 'big' ? 'Big stump' : 'Stump') +
+  (s.rating ? ' · ' + '★'.repeat(s.rating) : '');
+function addStumpMarker(s, n) {
+  const m = L.marker([s.lat, s.lon], {icon: L.divIcon({className: 'stump-pin', html: '🪵', iconSize: [34, 34], iconAnchor: [17, 17]})}).addTo(map);
+  const when = new Date(s.t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  m.bindPopup('<b>' + stumpLabel(s) + '</b><br>#' + n + ' · ' + when +
+    '<br>' + photoLinks('stump:' + s.id) +
+    '<a href="#" onclick="window._rmStump(\'' + s.id + '\');return false">remove stump</a>');
+  return m;
+}
+let stumpMarkers = stumps.map(addStumpMarker);
+window._rmStump = id => askConfirm('Are you sure you want to remove this stump?', () => {
+  const i = stumps.findIndex(s => s.id === id);
+  if (i < 0) return;
+  delPhotosByOwner('stump:' + id);
+  stumps.splice(i, 1);
+  localStorage.setItem('bp-stumps', JSON.stringify(stumps));
+  stumpMarkers.forEach(m => map.removeLayer(m));
+  stumpMarkers = stumps.map(addStumpMarker);
+  map.closePopup();
+  renderStumpList();
+  showToast('Stump removed');
+});
+// stump interview overlay
+const modal = document.getElementById('stumpmodal');
+let pendingLL = null, pendSize = 'big', pendRating = 0;
+const saveBtn = document.getElementById('stumpsave');
+document.getElementById('stumpsize').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  pendSize = b.dataset.v;
+  [...document.querySelectorAll('#stumpsize button')].forEach(x => x.classList.toggle('on', x === b));
+};
+document.getElementById('stumprate').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  pendRating = +b.dataset.v;
+  [...document.querySelectorAll('#stumprate button')].forEach(x => x.classList.toggle('on', +x.dataset.v <= pendRating));
+  saveBtn.disabled = false;
+};
+function openStumpModal(lat, lon, note) {
+  pendingLL = [lat, lon]; pendingLL.note = note;
+  pendSize = 'big'; pendRating = 0;
+  saveBtn.disabled = true;
+  [...document.querySelectorAll('#stumprate button')].forEach(x => x.classList.remove('on'));
+  [...document.querySelectorAll('#stumpsize button')].forEach(x => x.classList.toggle('on', x.dataset.v === 'big'));
+  modal.classList.add('show');
+}
+document.getElementById('stumpcancel').onclick = () => { modal.classList.remove('show'); pendingLL = null; };
+saveBtn.onclick = () => {
+  if (!pendingLL) return;
+  const s = {lat: pendingLL[0], lon: pendingLL[1], t: Date.now(), size: pendSize, rating: pendRating};
+  stumps.push(s);
+  localStorage.setItem('bp-stumps', JSON.stringify(stumps));
+  stumpMarkers.push(addStumpMarker(s, stumps.length));
+  modal.classList.remove('show');
+  showToast((pendRating === 5 ? '🪵 It’s stumpalump time!' : '🪵 Nice stump!') +
+    (pendingLL.note ? ' (' + pendingLL.note + ')' : ''));
+  pendingLL = null;
+};
+stumpBtn.onclick = () => {
+  if (me) { const ll = me.getLatLng(); openStumpModal(ll.lat, ll.lng); return; }
+  navigator.geolocation.getCurrentPosition(
+    p => openStumpModal(p.coords.latitude, p.coords.longitude),
+    () => { const c = map.getCenter(); openStumpModal(c.lat, c.lng, 'no GPS — pinned map center'); },
+    {enableHighAccuracy: true, timeout: 5000});
+};
+
+function nearestIdx(pos) {
+  let best = Infinity, bi = 0;
+  for (let i = 0; i < latlngs.length; i++) {
+    const d = hav(pos, latlngs[i]);
+    if (d < best) { best = d; bi = i; }
+  }
+  return {i: bi, off: best};
+}
+
+function onFix(p) {
+  const ll = [p.coords.latitude, p.coords.longitude];
+  if (!me) {
+    me = L.circleMarker(ll, {radius: 9, color: '#fff', fillColor: '#1a73e8', fillOpacity: 1, weight: 3}).addTo(map);
+    acc = L.circle(ll, {radius: p.coords.accuracy, color: '#1a73e8', weight: 1, fillOpacity: .12}).addTo(map);
+  } else {
+    me.setLatLng(ll); acc.setLatLng(ll); acc.setRadius(p.coords.accuracy);
+  }
+  if (follow) map.setView(ll, Math.max(map.getZoom(), 15));
+  if (tracking) {
+    const {i, off} = nearestIdx(ll);
+    const done = cum[i];
+    doneLine.setLatLngs(latlngs.slice(0, i + 1));
+    document.getElementById('progrect').setAttribute('width', xOf(done));
+    statrow.innerHTML =
+      stat('check', mi(done).toFixed(1) + ' mi done') +
+      stat('flag', mi(totalM - done).toFixed(1) + ' mi left') +
+      (p.coords.altitude ? stat('mtn', Math.round(ft(p.coords.altitude)).toLocaleString() + ' ft') : '') +
+      stat('nav', off < 40 ? 'on trail' : Math.round(ft(off)) + ' ft off',
+        off < 40 ? 'var(--green)' : '#ffb04d');
+    if (off > 60 && lastOff <= 60) beep();
+    lastOff = off;
+  }
+}
+function onErr(e) {
+  statrow.innerHTML = '<span style="color:#ffb04d">Location error: ' + e.message + '</span>';
+}
+function startWatch() {
+  if (watching === null)
+    watching = navigator.geolocation.watchPosition(onFix, onErr, {enableHighAccuracy: true, maximumAge: 3000});
+}
+function stopWatchIfIdle() {
+  if (!tracking && !locBtn.classList.contains('on') && watching !== null) {
+    navigator.geolocation.clearWatch(watching); watching = null;
+    if (me) { map.removeLayer(me); map.removeLayer(acc); me = null; }
+  }
+}
+locBtn.onclick = () => {
+  if (locBtn.classList.contains('on')) {
+    locBtn.classList.remove('on'); follow = false; stopWatchIfIdle();
+  } else {
+    locBtn.classList.add('on'); follow = true; startWatch();
+  }
+};
+startBtn.onclick = () => {
+  tracking = !tracking;
+  startBtn.classList.toggle('tracking', tracking);
+  if (tracking) {
+    if (!audioCtx) try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+    startBtn.innerHTML = icon('stop', 18) + 'End';
+    follow = true; startWatch();
+    statrow.innerHTML = '<span>Waiting for GPS…</span>';
+  } else {
+    startBtn.innerHTML = icon('nav', 18) + 'Start';
+    follow = false;
+    doneLine.setLatLngs([]);
+    document.getElementById('progrect').setAttribute('width', 0);
+    idleStats(); stopWatchIfIdle();
+  }
+};
+startBtn.innerHTML = icon('nav', 18) + 'Start';
+locBtn.innerHTML = icon('nav', 22);
+map.on('dragstart', () => { follow = false; });
+
+// ---------- extras panel ----------
+const wptIcons = {'falls': '💦', 'waterfall': '💦', 'lake': '🏞', 'cabin': '🏚', 'rest': '🚻', 'turn': '↩️'};
+document.getElementById('wptlist').innerHTML = data.waypoints.map((w, i) => {
+  const key = Object.keys(wptIcons).find(k => w.name.toLowerCase().includes(k));
+  return '<div class="row" data-i="' + i + '">' + (key ? wptIcons[key] + ' ' : '📍 ') + w.name + '<span class="chev">›</span></div>';
+}).join('');
+document.getElementById('wptlist').onclick = e => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  const w = data.waypoints[+row.dataset.i];
+  setSheet(1);
+  map.flyTo([w.lat, w.lon], 16);
+};
+function renderStumpList() {
+  const el = document.getElementById('stumplist');
+  if (!stumps.length) { el.innerHTML = '<div class="row dim">No stumps logged yet</div>'; return; }
+  el.innerHTML = stumps.map((s, i) =>
+    '<div class="row" data-i="' + i + '">🪵 ' + stumpLabel(s) + ' · ' +
+    new Date(s.t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + '<span class="chev">›</span></div>').join('');
+  el.onclick = e => {
+    const row = e.target.closest('.row');
+    if (!row) return;
+    const s = stumps[+row.dataset.i];
+    setSheet(1);
+    map.flyTo([s.lat, s.lon], 16);
+  };
+}
+document.getElementById('drive').href =
+  'https://www.google.com/maps/dir/?api=1&destination=' + latlngs[0][0] + ',' + latlngs[0][1];
+document.getElementById('weather').href =
+  'https://forecast.weather.gov/MapClick.php?lat=' + latlngs[0][0] + '&lon=' + latlngs[0][1];
+document.getElementById('overviewrow').onclick = () => {
+  const o = document.getElementById('overview');
+  o.style.display = o.style.display === 'none' ? 'block' : 'none';
+};
+document.getElementById('shareloc').onclick = () => {
+  const ll = me ? [me.getLatLng().lat, me.getLatLng().lng] : [map.getCenter().lat, map.getCenter().lng];
+  const url = 'https://maps.google.com/?q=' + ll[0].toFixed(5) + ',' + ll[1].toFixed(5);
+  if (navigator.share) navigator.share({title: 'My location on Big Pine Lakes Trail', url}).catch(() => {});
+  else { navigator.clipboard?.writeText(url); showToast('Location link copied'); }
+};
+{
+  let gpx = '<?xml version="1.0"?>\n<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="big-pine-map">\n';
+  data.waypoints.forEach(w => {
+    gpx += '<wpt lat="' + w.lat + '" lon="' + w.lon + '"><name>' + w.name.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</name></wpt>\n';
+  });
+  gpx += '<trk><name>Big Pine Lakes Trail</name><trkseg>\n';
+  pts.forEach(p => { gpx += '<trkpt lat="' + p[0] + '" lon="' + p[1] + '"><ele>' + (p[2] || 0) + '</ele></trkpt>\n'; });
+  gpx += '</trkseg></trk>\n</gpx>';
+  document.getElementById('gpxdl').href = URL.createObjectURL(new Blob([gpx], {type: 'application/gpx+xml'}));
+}
+
+// ---------- offline support ----------
+const TILE_CACHE = 'bp-tiles-v1', APP_CACHE = 'bp-app-v1';
+const offBtn = document.getElementById('offline');
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+function tileList() {
+  const b = line.getBounds().pad(0.25);
+  const urls = [];
+  for (let z = 12; z <= 16; z++) {
+    const n = 2 ** z;
+    const x1 = Math.floor((b.getWest() + 180) / 360 * n);
+    const x2 = Math.floor((b.getEast() + 180) / 360 * n);
+    const latRad = l => l * Math.PI / 180;
+    const ty = lat => Math.floor((1 - Math.log(Math.tan(latRad(lat)) + 1 / Math.cos(latRad(lat))) / Math.PI) / 2 * n);
+    const y1 = ty(b.getNorth()), y2 = ty(b.getSouth());
+    for (let x = x1; x <= x2; x++)
+      for (let y = y1; y <= y2; y++)
+        urls.push(`https://a.tile.opentopomap.org/${z}/${x}/${y}.png`);
+  }
+  return urls;
+}
+offBtn.onclick = async () => {
+  offBtn.disabled = true;
+  try {
+    const app = await caches.open(APP_CACHE);
+    await app.add(location.pathname).catch(() => {});
+    const tiles = await caches.open(TILE_CACHE);
+    const urls = tileList();
+    let done = 0, failed = 0;
+    const CHUNK = 8;
+    for (let i = 0; i < urls.length; i += CHUNK) {
+      await Promise.all(urls.slice(i, i + CHUNK).map(async u => {
+        if (await tiles.match(u)) { done++; return; }
+        try {
+          const r = await fetch(u);
+          if (r.ok) { await tiles.put(u, r); done++; } else failed++;
+        } catch { failed++; }
+      }));
+      offBtn.innerHTML = icon('dl', 18) + Math.round((done + failed) / urls.length * 100) + '%';
+    }
+    offBtn.innerHTML = failed > urls.length * 0.1 ? '⚠ Partial download' : icon('check', 18) + 'Downloaded';
+    offBtn.classList.add('done');
+  } catch (e) {
+    offBtn.innerHTML = '⚠ Failed — retry';
+    offBtn.disabled = false;
+  }
+};
+offBtn.innerHTML = icon('dl', 18) + 'Download offline';
+caches.has(TILE_CACHE).then(async has => {
+  if (!has) return;
+  const keys = await (await caches.open(TILE_CACHE)).keys();
+  if (keys.length > 50) { offBtn.innerHTML = icon('check', 18) + 'Downloaded'; offBtn.classList.add('done'); }
+});
+</script>
+</body>
+</html>
