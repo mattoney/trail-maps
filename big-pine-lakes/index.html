@@ -671,8 +671,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
 </style>
 <style>
   :root{--sheet:#161a16;--sheet2:#22271f;--txt:#f2f4ef;--dim:#9aa294;--green:#b6f26a;--track:#7a3b2e}
-  html,body{margin:0;height:100%;font-family:-apple-system,system-ui,sans-serif;background:#000;
-    overscroll-behavior:none;touch-action:manipulation}
+  html{height:100%;overflow:hidden}
+  body{margin:0;position:fixed;inset:0;overflow:hidden;font-family:-apple-system,system-ui,sans-serif;
+    background:#000;overscroll-behavior:none;touch-action:manipulation}
   #map{position:absolute;inset:0}
   .fab{position:absolute;z-index:1000;width:52px;height:52px;border-radius:50%;border:none;
     background:rgba(22,26,22,.92);color:#fff;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,.4);cursor:pointer}
@@ -686,9 +687,27 @@ svg.leaflet-image-layer.leaflet-interactive path {
     border:1.5px solid var(--green);display:flex;align-items:center;justify-content:center;
     font-size:18px;line-height:1;
     box-shadow:0 0 0 3px rgba(182,242,106,.18),0 0 14px rgba(182,242,106,.55),0 2px 6px rgba(0,0,0,.45)}
-  #stumpmodal{position:absolute;inset:0;z-index:1300;background:rgba(0,0,0,.55);display:none;
+  #stumpmodal,#confirmmodal{position:absolute;inset:0;z-index:1300;background:rgba(0,0,0,.55);display:none;
     align-items:center;justify-content:center;backdrop-filter:blur(3px)}
-  #stumpmodal.show{display:flex}
+  #stumpmodal.show,#confirmmodal.show{display:flex}
+  #confirmcard{background:var(--sheet);color:var(--txt);border-radius:20px;padding:22px 20px;width:min(300px,82vw);
+    box-shadow:0 10px 40px rgba(0,0,0,.6)}
+  #confirmmsg{margin:0 0 18px;font-size:16px;line-height:1.4}
+  #confirmbtns{display:flex;gap:10px}
+  #confirmbtns button{flex:1;border:none;border-radius:22px;padding:12px 0;font-size:15px;font-weight:600;cursor:pointer}
+  #confirmno{background:var(--sheet2);color:var(--txt)}
+  #confirmyes{background:#e05b4d;color:#fff}
+  #photoview{position:absolute;inset:0;z-index:1400;background:rgba(0,0,0,.92);display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:16px}
+  #photoview.show{display:flex}
+  #photoimg{max-width:94vw;max-height:78vh;border-radius:12px}
+  #photobtns{display:flex;gap:12px}
+  #photobtns button{border:none;border-radius:22px;padding:12px 28px;font-size:15px;font-weight:600;cursor:pointer}
+  #photodel{background:#e05b4d;color:#fff}
+  #photoclose{background:var(--sheet2);color:var(--txt)}
+  .pp-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .pp-thumbs img{width:52px;height:52px;object-fit:cover;border-radius:8px;cursor:pointer}
+  .pp-add{display:inline-block;margin-top:8px;font-weight:600}
   #stumpcard{background:var(--sheet);color:var(--txt);border-radius:20px;padding:22px 20px;width:min(320px,86vw);
     box-shadow:0 10px 40px rgba(0,0,0,.6);-webkit-user-select:none;user-select:none}
   #stumpcard h2{margin:0 0 16px;font-size:20px}
@@ -749,6 +768,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <button class="fab" id="locate" title="My location">➤</button>
 <button class="fab" id="stump" title="Stump sighting">🪵</button>
 <div id="toast"></div>
+<input type="file" id="photoinput" accept="image/*" multiple style="display:none">
+<div id="photoview"><img id="photoimg" alt=""><div id="photobtns">
+  <button id="photodel">Delete</button><button id="photoclose">Close</button></div></div>
+<div id="confirmmodal"><div id="confirmcard">
+  <p id="confirmmsg"></p>
+  <div id="confirmbtns"><button id="confirmno">Cancel</button><button id="confirmyes">Remove</button></div>
+</div></div>
 <div id="stumpmodal">
   <div id="stumpcard">
     <h2>🪵 Log this stump</h2>
@@ -866,11 +892,11 @@ const doneLine = L.polyline([], {color: '#2e7d32', weight: 4}).addTo(map);
 const line = L.polyline(latlngs, {color: '#e0245e', weight: 4}).addTo(map);
 L.circleMarker(latlngs[0], {radius: 8, color: '#fff', fillColor: '#0b8043', fillOpacity: 1, weight: 2})
   .addTo(map).bindPopup('Trailhead');
-data.waypoints.forEach(w => {
+data.waypoints.forEach((w, i) => {
   L.circleMarker([w.lat, w.lon], {radius: 7, color: '#fff', fillColor: '#1a4fd8', fillOpacity: 1, weight: 2})
     .addTo(map)
     .bindTooltip(w.name, {permanent: true, direction: 'top', offset: [0, -10], className: 'wpt-label'})
-    .bindPopup(w.name);
+    .bindPopup(() => '<b>' + w.name + '</b><br>' + photoLinks('wpt:' + i));
 });
 
 function fitTrail() {
@@ -1043,6 +1069,17 @@ function endDrag(e) {
   setTimeout(() => document.removeEventListener('click', eat, true), 400);
 }
 ['pointerup', 'pointercancel'].forEach(ev => sheet.addEventListener(ev, endDrag, {passive: true}));
+// iOS: in full state the body has touch-action:pan-y, so Safari claims downward
+// drags as scroll attempts and cancels our pointer stream. When the list is
+// already at the top, preventDefault the downward touchmove so the drag stays ours.
+let bodyTouchY = null;
+sheetBody.addEventListener('touchstart', e => { bodyTouchY = e.touches[0].clientY; }, {passive: true});
+sheetBody.addEventListener('touchmove', e => {
+  if (bodyTouchY === null) return;
+  const dy = e.touches[0].clientY - bodyTouchY;
+  if (sheetState === 2 && dy > 0 && sheetBody.scrollTop <= 0 && e.cancelable) e.preventDefault();
+}, {passive: false});
+sheetBody.addEventListener('touchend', () => { bodyTouchY = null; }, {passive: true});
 
 // ---------- live location + tracking ----------
 let watching = null, me = null, acc = null, follow = false, tracking = false, lastOff = 0;
@@ -1077,9 +1114,107 @@ function showToast(msg) {
   showToast._t = setTimeout(() => { toast.style.display = 'none'; }, 2200);
 }
 
+// ---------- confirm dialog ----------
+const confirmModal = document.getElementById('confirmmodal');
+let confirmCb = null;
+function askConfirm(msg, cb) {
+  document.getElementById('confirmmsg').textContent = msg;
+  confirmCb = cb;
+  confirmModal.classList.add('show');
+}
+document.getElementById('confirmno').onclick = () => { confirmModal.classList.remove('show'); confirmCb = null; };
+document.getElementById('confirmyes').onclick = () => {
+  confirmModal.classList.remove('show');
+  if (confirmCb) confirmCb();
+  confirmCb = null;
+};
+
+// ---------- photo store (IndexedDB — photos are too big for localStorage) ----------
+let _db = null;
+function pdb() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('bp-photos', 1);
+    r.onupgradeneeded = () => {
+      const s = r.result.createObjectStore('photos', {keyPath: 'id'});
+      s.createIndex('owner', 'owner');
+    };
+    r.onsuccess = () => { _db = r.result; res(_db); };
+    r.onerror = () => rej(r.error);
+  });
+}
+const tx = (mode, fn) => pdb().then(d => new Promise((res, rej) => {
+  const t = d.transaction('photos', mode), req = fn(t.objectStore('photos'));
+  t.oncomplete = () => res(req && req.result);
+  t.onerror = () => rej(t.error);
+}));
+const getPhotos = owner => tx('readonly', s => s.index('owner').getAll(owner));
+const delPhoto = id => tx('readwrite', s => s.delete(id));
+async function delPhotosByOwner(owner) {
+  const ps = await getPhotos(owner) || [];
+  for (const p of ps) await delPhoto(p.id);
+}
+async function shrink(file) {
+  const bmp = await createImageBitmap(file);
+  const sc = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(res => c.toBlob(res, 'image/jpeg', 0.8));
+}
+const photoInput = document.getElementById('photoinput');
+let photoTarget = null;
+window._addPhoto = owner => { photoTarget = owner; photoInput.click(); };
+photoInput.onchange = async () => {
+  if (!photoTarget || !photoInput.files.length) return;
+  for (const f of photoInput.files) {
+    const blob = await shrink(f).catch(() => f);
+    await tx('readwrite', s => s.put({id: Date.now() + Math.random(), owner: photoTarget, blob, t: Date.now()}));
+  }
+  showToast('📷 ' + photoInput.files.length + ' photo' + (photoInput.files.length > 1 ? 's' : '') + ' saved');
+  document.querySelectorAll('.pp-thumbs[data-owner="' + photoTarget + '"]').forEach(fillThumbs);
+  photoInput.value = ''; photoTarget = null;
+};
+// fullscreen viewer
+const pview = document.getElementById('photoview'), pimg = document.getElementById('photoimg');
+let viewingId = null, viewingOwner = null;
+async function viewPhoto(id, owner) {
+  const ps = await getPhotos(owner) || [];
+  const p = ps.find(x => x.id === id);
+  if (!p) return;
+  viewingId = id; viewingOwner = owner;
+  pimg.src = URL.createObjectURL(p.blob);
+  pview.classList.add('show');
+}
+document.getElementById('photoclose').onclick = () => { pview.classList.remove('show'); URL.revokeObjectURL(pimg.src); };
+document.getElementById('photodel').onclick = () => askConfirm('Delete this photo?', async () => {
+  await delPhoto(viewingId);
+  pview.classList.remove('show');
+  document.querySelectorAll('.pp-thumbs[data-owner="' + viewingOwner + '"]').forEach(fillThumbs);
+});
+async function fillThumbs(el) {
+  const owner = el.dataset.owner;
+  const ps = await getPhotos(owner) || [];
+  el.innerHTML = '';
+  ps.forEach(p => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(p.blob);
+    img.onclick = () => viewPhoto(p.id, owner);
+    el.appendChild(img);
+  });
+}
+map.on('popupopen', e => e.popup.getElement().querySelectorAll('.pp-thumbs').forEach(fillThumbs));
+const photoLinks = owner =>
+  '<a class="pp-add" href="#" onclick="window._addPhoto(\'' + owner + '\');return false">📷 Add photo</a>' +
+  '<div class="pp-thumbs" data-owner="' + owner + '"></div>';
+
 // ---------- stump sightings ----------
 let stumps = [];
 try { stumps = JSON.parse(localStorage.getItem('bp-stumps') || '[]'); } catch {}
+// stable ids so photos survive list reordering
+let migrated = false;
+stumps.forEach(s => { if (!s.id) { s.id = String(s.t || Date.now()) + Math.floor(Math.random() * 1e4); migrated = true; } });
+if (migrated) localStorage.setItem('bp-stumps', JSON.stringify(stumps));
 const stumpLabel = s =>
   (s.size === 'baby' ? 'Baby stump' : s.size === 'big' ? 'Big stump' : 'Stump') +
   (s.rating ? ' · ' + '★'.repeat(s.rating) : '');
@@ -1087,18 +1222,23 @@ function addStumpMarker(s, n) {
   const m = L.marker([s.lat, s.lon], {icon: L.divIcon({className: 'stump-pin', html: '🪵', iconSize: [34, 34], iconAnchor: [17, 17]})}).addTo(map);
   const when = new Date(s.t).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
   m.bindPopup('<b>' + stumpLabel(s) + '</b><br>#' + n + ' · ' + when +
-    '<br><a href="#" onclick="window._rmStump(' + (n-1) + ');return false">remove</a>');
+    '<br>' + photoLinks('stump:' + s.id) +
+    '<a href="#" onclick="window._rmStump(\'' + s.id + '\');return false">remove stump</a>');
   return m;
 }
 let stumpMarkers = stumps.map(addStumpMarker);
-window._rmStump = i => {
-  map.removeLayer(stumpMarkers[i]);
+window._rmStump = id => askConfirm('Are you sure you want to remove this stump?', () => {
+  const i = stumps.findIndex(s => s.id === id);
+  if (i < 0) return;
+  delPhotosByOwner('stump:' + id);
   stumps.splice(i, 1);
   localStorage.setItem('bp-stumps', JSON.stringify(stumps));
   stumpMarkers.forEach(m => map.removeLayer(m));
   stumpMarkers = stumps.map(addStumpMarker);
+  map.closePopup();
+  renderStumpList();
   showToast('Stump removed');
-};
+});
 // stump interview overlay
 const modal = document.getElementById('stumpmodal');
 let pendingLL = null, pendSize = 'big', pendRating = 0;
