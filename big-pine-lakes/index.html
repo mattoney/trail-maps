@@ -708,9 +708,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
   #offline.done{color:var(--green)}
   #start{background:var(--green);color:#0c1405}
   #start.tracking{background:#e05b4d;color:#fff}
+  #sheet{touch-action:none}
   #extras{display:none;padding-bottom:8px}
   .full #extras{display:block}
-  .full{max-height:80vh;overflow-y:auto}
+  #sheet.full{max-height:80vh;overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain}
   .collapsed #chartwrap,.collapsed #chartlabels,.collapsed #statrow{display:none}
   .sect{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 6px}
   .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 2px;
@@ -948,19 +949,33 @@ function setSheet(n) {
 function cycleSheet() { setSheet(sheetState === 2 ? 1 : sheetState + 1); }
 document.getElementById('handle').onclick = cycleSheet;
 document.getElementById('title').onclick = cycleSheet;
-// swipe up/down anywhere on the sheet (except the chart scrubber and buttons)
-let swipeY = null;
+// swipe up/down anywhere on the sheet (except the chart scrubber and buttons).
+// Trigger on pointermove passing a threshold — iOS may never deliver pointerup
+// once it decides the gesture is a scroll, so waiting for release is unreliable.
+let swipeY = null, swiped = false;
 sheet.addEventListener('pointerdown', e => {
-  if (e.target.closest('#chart, .pill, a, #wptlist, #stumplist')) return;
-  swipeY = e.clientY;
+  if (e.target.closest('#chart, .pill')) return;
+  swipeY = e.clientY; swiped = false;
 }, {passive: true});
-sheet.addEventListener('pointerup', e => {
-  if (swipeY === null) return;
+sheet.addEventListener('pointermove', e => {
+  if (swipeY === null || swiped) return;
   const dy = e.clientY - swipeY;
-  swipeY = null;
-  if (dy < -30) setSheet(sheetState + 1);
-  else if (dy > 30) setSheet(sheetState - 1);
-});
+  if (dy < -40) {
+    swiped = true; setSheet(sheetState + 1);
+  } else if (dy > 40) {
+    if (sheetState === 2 && sheet.scrollTop > 0) { swipeY = null; return; }
+    swiped = true; setSheet(sheetState - 1);
+  }
+  // a real swipe shouldn't also fire the tap it started on (row links, title toggle)
+  if (swiped) {
+    const eat = c => { c.stopPropagation(); c.preventDefault(); };
+    document.addEventListener('click', eat, true);
+    setTimeout(() => document.removeEventListener('click', eat, true), 400);
+    setTimeout(() => { swipeY = null; }, 0);
+  }
+}, {passive: true});
+['pointerup', 'pointercancel'].forEach(ev =>
+  sheet.addEventListener(ev, () => { swipeY = null; }, {passive: true}));
 
 // ---------- live location + tracking ----------
 let watching = null, me = null, acc = null, follow = false, tracking = false, lastOff = 0;
