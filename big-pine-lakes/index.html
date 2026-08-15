@@ -761,6 +761,33 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .row.dim{color:var(--dim)}
   .wpt-label{background:rgba(255,255,255,.92);border:1px solid #888;border-radius:6px;padding:1px 5px;
     font-size:11px;font-weight:600;color:#222;white-space:nowrap}
+  #confetti{position:absolute;inset:0;z-index:1500;pointer-events:none;display:none}
+  #lorecard{position:absolute;left:12px;right:12px;z-index:1150;background:var(--sheet);color:var(--txt);
+    border:1px solid #333a30;border-radius:18px;padding:16px 44px 16px 16px;
+    box-shadow:0 8px 30px rgba(0,0,0,.55);font-size:14.5px;line-height:1.5;
+    transform:translateY(150%);opacity:0;visibility:hidden;pointer-events:none;
+    transition:transform .35s cubic-bezier(.22,.9,.3,1),opacity .3s,visibility 0s .35s}
+  #lorecard.show{transform:none;opacity:1;visibility:visible;pointer-events:auto;
+    transition:transform .35s cubic-bezier(.22,.9,.3,1),opacity .3s,visibility 0s}
+  #lorecard h3{margin:0 0 6px;font-size:16px}
+  #lorecard p{margin:0;color:#cfd6c8}
+  #loreclose{position:absolute;top:6px;right:6px;border:none;background:none;color:var(--dim);
+    font-size:22px;cursor:pointer;padding:6px 10px}
+  #badgeshelf{display:flex;gap:8px;flex-wrap:wrap;padding:10px 2px;border-bottom:1px solid #2b2f2a}
+  .badge{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:99px;
+    padding:6px 12px;background:var(--sheet2);color:var(--dim);border:1px solid #2a3026}
+  .badge.earned{color:#0c1405;background:var(--green);border-color:var(--green)}
+  #huntlist .row.got{color:var(--green)}
+  #huntlist .row{border-bottom:none}
+  #huntlist .pp-thumbs{margin:0;padding:0 2px 10px;border-bottom:1px solid #2b2f2a}
+  #recap{position:absolute;inset:0;z-index:1450;background:rgba(0,0,0,.92);display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px}
+  #recap.show{display:flex}
+  #recapimg{max-width:92vw;max-height:70vh;border-radius:14px}
+  #recapbtns{display:flex;gap:12px}
+  #recapbtns button{border:none;border-radius:22px;padding:12px 28px;font-size:15px;font-weight:600;cursor:pointer}
+  #recapshare{background:var(--green);color:#0c1405}
+  #recapclose{background:var(--sheet2);color:var(--txt)}
 </style>
 </head>
 <body>
@@ -771,6 +798,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
 <input type="file" id="photoinput" accept="image/*" multiple style="display:none">
 <div id="photoview"><img id="photoimg" alt=""><div id="photobtns">
   <button id="photodel">Delete</button><button id="photoclose">Close</button></div></div>
+<canvas id="confetti"></canvas>
+<div id="lorecard"><button id="loreclose">×</button><h3></h3><p></p></div>
+<div id="recap">
+  <img id="recapimg" alt="Hike recap" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+  <div id="recapbtns"><button id="recapshare">Share</button><button id="recapclose">Close</button></div>
+</div>
 <div id="confirmmodal"><div id="confirmcard">
   <p id="confirmmsg"></p>
   <div id="confirmbtns"><button id="confirmno">Cancel</button><button id="confirmyes">Remove</button></div>
@@ -810,8 +843,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="sect">Waypoints</div>
     <div id="wptlist"></div>
     <div class="sect">🪵 Stump log</div>
+    <div id="badgeshelf"></div>
     <div id="stumplist"><div class="row dim">No stumps logged yet</div></div>
+    <div class="sect">📸 Scavenger hunt</div>
+    <div id="huntlist"></div>
     <div class="sect">More</div>
+    <div class="row" id="recaprow" style="display:none">🏔 Last hike recap <span class="chev">›</span></div>
     <div class="row" id="overviewrow">🗺 Trail overview <span class="chev">›</span></div>
     <div id="overview" style="display:none;font-size:14px;color:var(--dim);line-height:1.55;padding:4px 2px 12px;border-bottom:1px solid #2b2f2a">
       Out-and-back along North Fork Big Pine Creek: waterfalls and the Lon Chaney cabin low down,
@@ -896,7 +933,9 @@ data.waypoints.forEach((w, i) => {
   L.circleMarker([w.lat, w.lon], {radius: 7, color: '#fff', fillColor: '#1a4fd8', fillOpacity: 1, weight: 2})
     .addTo(map)
     .bindTooltip(w.name, {permanent: true, direction: 'top', offset: [0, -10], className: 'wpt-label'})
-    .bindPopup(() => '<b>' + w.name + '</b><br>' + photoLinks('wpt:' + i));
+    .bindPopup(() => '<b>' + w.name + '</b>' +
+      (LORE[i] ? '<div style="margin-top:4px;max-width:230px;line-height:1.4">' + LORE[i] + '</div>' : '') +
+      '<br>' + photoLinks('wpt:' + i));
 });
 
 function fitTrail() {
@@ -1104,6 +1143,7 @@ function syncFabs() {
   locBtn.style.bottom = (vis + 18) + 'px';
   stumpBtn.style.bottom = (vis + 82) + 'px';
   toast.style.bottom = (vis + 18) + 'px';
+  document.getElementById('lorecard').style.bottom = (vis + 14) + 'px';
 }
 new ResizeObserver(() => setSheet(sheetState, false)).observe(sheet);
 setSheet(1, false);
@@ -1172,8 +1212,10 @@ photoInput.onchange = async () => {
     await tx('readwrite', s => s.put({id: Date.now() + Math.random(), owner: photoTarget, blob, t: Date.now()}));
   }
   showToast('📷 ' + photoInput.files.length + ' photo' + (photoInput.files.length > 1 ? 's' : '') + ' saved');
-  document.querySelectorAll('.pp-thumbs[data-owner="' + photoTarget + '"]').forEach(fillThumbs);
+  const wasHunt = photoTarget.startsWith('hunt:');
+  if (!wasHunt) document.querySelectorAll('.pp-thumbs[data-owner="' + photoTarget + '"]').forEach(fillThumbs);
   photoInput.value = ''; photoTarget = null;
+  if (wasHunt) renderHunt();
 };
 // fullscreen viewer
 const pview = document.getElementById('photoview'), pimg = document.getElementById('photoimg');
@@ -1190,7 +1232,8 @@ document.getElementById('photoclose').onclick = () => { pview.classList.remove('
 document.getElementById('photodel').onclick = () => askConfirm('Delete this photo?', async () => {
   await delPhoto(viewingId);
   pview.classList.remove('show');
-  document.querySelectorAll('.pp-thumbs[data-owner="' + viewingOwner + '"]').forEach(fillThumbs);
+  if (viewingOwner.startsWith('hunt:')) renderHunt();
+  else document.querySelectorAll('.pp-thumbs[data-owner="' + viewingOwner + '"]').forEach(fillThumbs);
 });
 async function fillThumbs(el) {
   const owner = el.dataset.owner;
@@ -1207,6 +1250,248 @@ map.on('popupopen', e => e.popup.getElement().querySelectorAll('.pp-thumbs').for
 const photoLinks = owner =>
   '<a class="pp-add" href="#" onclick="window._addPhoto(\'' + owner + '\');return false">📷 Add photo</a>' +
   '<div class="pp-thumbs" data-owner="' + owner + '"></div>';
+
+// ---------- confetti ----------
+const confCanvas = document.getElementById('confetti');
+function confetti(n = 90) {
+  const ctx = confCanvas.getContext('2d');
+  confCanvas.width = innerWidth; confCanvas.height = innerHeight;
+  confCanvas.style.display = 'block';
+  const colors = ['#b6f26a', '#f2f4ef', '#8a5a3b', '#6fcf5e', '#ffd166'];
+  const ps = Array.from({length: n}, () => ({
+    x: Math.random() * innerWidth, y: -20 - Math.random() * innerHeight * 0.3,
+    vx: (Math.random() - .5) * 3, vy: 2 + Math.random() * 3.5,
+    s: 5 + Math.random() * 6, r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3,
+    c: colors[Math.floor(Math.random() * colors.length)]
+  }));
+  const t0 = performance.now();
+  requestAnimationFrame(function frame(t) {
+    ctx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    ps.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += .05; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * .6);
+      ctx.restore();
+    });
+    if (t - t0 < 2400) requestAnimationFrame(frame);
+    else { ctx.clearRect(0, 0, confCanvas.width, confCanvas.height); confCanvas.style.display = 'none'; }
+  });
+}
+
+// ---------- trail lore (keyed to waypoint index in trail.json) ----------
+const LORE = [
+  'Last picnic tables and rest rooms of the day. The Glacier Lodge area below has hosted Sierra travelers since the 1910s — top off water and snacks, the real climbing starts here.',
+  'First Falls, conquered. North Fork Big Pine Creek drops in three big steps — Second Falls is the tall one you’ll see up-canyon soon. The switchbacks trade shade for views fast.',
+  'This stone cabin was built around 1929 as a summer retreat for silent-film legend Lon Chaney, “the Man of a Thousand Faces,” designed by pioneering architect Paul Revere Williams. It’s a Forest Service cabin now.',
+  'Cascade check: you’re in the hanging valley above Second Falls now. From here the creek mellows and the canyon opens toward the lakes.',
+  'Another ribbon of whitewater — all of it is Palisade Glacier melt on its way to the Owens Valley. The milky tint is finely ground “rock flour.”',
+  'Junction with the Glacier Trail, which climbs toward Palisade Glacier — the largest glacier in the Sierra and the southernmost in the U.S. Its rock flour is what turns the lakes that unreal turquoise.'
+];
+const lorecard = document.getElementById('lorecard');
+function showLore(title, text) {
+  lorecard.querySelector('h3').textContent = title;
+  lorecard.querySelector('p').textContent = text;
+  lorecard.classList.add('show');
+  clearTimeout(showLore._t);
+  showLore._t = setTimeout(hideLore, 25000);
+}
+function hideLore() { lorecard.classList.remove('show'); }
+document.getElementById('loreclose').onclick = hideLore;
+// fires when any live fix comes within ~200 ft of a waypoint (once per page load each)
+const seenWpts = new Set();
+function checkWpts(ll) {
+  data.waypoints.forEach((w, i) => {
+    if (seenWpts.has(i) || hav(ll, [w.lat, w.lon]) > 60) return;
+    seenWpts.add(i);
+    confetti();
+    showLore('📍 ' + w.name, LORE[i] || '');
+  });
+}
+
+// ---------- stump badges ----------
+const BADGES = [
+  {e: '🪵', name: 'First Stump', test: ss => ss.length >= 1},
+  {e: '🔭', name: 'Stump Scout', test: ss => ss.length >= 3},
+  {e: '🐗', name: 'Big Stump Hunter', test: ss => ss.filter(s => s.size === 'big').length >= 3},
+  {e: '👑', name: 'Stumpalump Supreme', test: ss => ss.some(s => s.rating === 5)}
+];
+function renderBadges() {
+  document.getElementById('badgeshelf').innerHTML = BADGES.map(b =>
+    '<span class="badge' + (b.test(stumps) ? ' earned' : '') + '">' + b.e + ' ' + b.name + '</span>').join('');
+}
+
+// ---------- photo scavenger hunt ----------
+const HUNT = [
+  {e: '🐿', name: 'A marmot (any bold rodent counts)'},
+  {e: '💧', name: 'That turquoise lake water'},
+  {e: '🏚', name: 'The Lon Chaney cabin'},
+  {e: '🏔', name: 'The glacier, from up high'},
+  {e: '🪵', name: 'A truly worthy stump'},
+  {e: '🥪', name: 'Summit snack with a view'}
+];
+async function renderHunt() {
+  const el = document.getElementById('huntlist');
+  let got = 0;
+  const rows = await Promise.all(HUNT.map(async (h, i) => {
+    const ps = await getPhotos('hunt:' + i) || [];
+    if (ps.length) got++;
+    return '<div class="row' + (ps.length ? ' got' : '') + '" data-i="' + i + '">' +
+      h.e + ' ' + h.name + '<span class="chev">' + (ps.length ? icon('check', 16) : '📷') + '</span></div>' +
+      '<div class="pp-thumbs" data-owner="hunt:' + i + '"></div>';
+  }));
+  el.innerHTML = rows.join('');
+  el.querySelectorAll('.pp-thumbs').forEach(fillThumbs);
+  el.onclick = e => {
+    const r = e.target.closest('.row');
+    if (r) window._addPhoto('hunt:' + r.dataset.i);
+  };
+  if (got === HUNT.length && !localStorage.getItem('bp-hunt-legend')) {
+    localStorage.setItem('bp-hunt-legend', '1');
+    confetti(150);
+    showToast('🏆 Trail Legend — scavenger hunt complete!');
+  }
+}
+
+// ---------- hike session + recap card ----------
+let session = null;
+function trackMilestones(i, done, ll) {
+  if (!session) return;
+  if (session.startFt === null) session.startFt = ft(ele[i]);
+  session.maxDone = Math.max(session.maxDone, done);
+  session.maxGain = Math.max(session.maxGain, ft(ele[i]) - session.startFt);
+  const k = Math.floor(session.maxGain / 1000);
+  if (k > session.kGain) {
+    session.kGain = k;
+    confetti();
+    showToast('💪 ' + (k * 1000).toLocaleString() + ' ft climbed');
+  }
+  if (!session.half && done >= totalM / 2) {
+    session.half = true;
+    confetti();
+    showToast('🎉 Halfway — ' + mi(done).toFixed(1) + ' mi down');
+  }
+  // out-and-back: nearest-point matching is ambiguous on the return leg,
+  // so "finished" = already passed halfway AND physically back at the end of the track
+  if (!session.top && session.half && hav(ll, latlngs[latlngs.length - 1]) < 80) {
+    session.top = true;
+    confetti(160);
+    showToast('🏔 You made it — that’s the whole trail!');
+  }
+}
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+let recapCanvas = null;
+async function drawRecap(sum, photoBlob) {
+  const c = document.createElement('canvas');
+  c.width = 1080; c.height = photoBlob ? 1350 : 1040;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#101310'; ctx.fillRect(0, 0, c.width, c.height);
+  const F = '-apple-system, system-ui, sans-serif';
+  ctx.fillStyle = '#b6f26a'; ctx.font = '700 34px ' + F;
+  ctx.textAlign = 'center';
+  ctx.fillText('B I G   P I N E   L A K E S   T R A I L', 540, 96);
+  ctx.fillStyle = '#f2f4ef'; ctx.font = '800 66px ' + F;
+  ctx.fillText(new Date(sum.t0).toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'}), 540, 180);
+  // route silhouette, done portion in green
+  const lats = latlngs.map(p => p[0]), lons = latlngs.map(p => p[1]);
+  const la0 = Math.min(...lats), la1 = Math.max(...lats), lo0 = Math.min(...lons), lo1 = Math.max(...lons);
+  const cosL = Math.cos((la0 + la1) / 2 * Math.PI / 180);
+  const bx = 100, by = 240, bw = 880, bh = 330;
+  const sc = Math.min(bw / ((lo1 - lo0) * cosL), bh / (la1 - la0));
+  const px = p => bx + bw / 2 + ((p[1] - (lo0 + lo1) / 2) * cosL) * sc;
+  const py = p => by + bh / 2 - (p[0] - (la0 + la1) / 2) * sc;
+  ctx.lineJoin = ctx.lineCap = 'round';
+  const trace = (upto, w, col) => {
+    ctx.beginPath();
+    latlngs.slice(0, upto).forEach((p, j) => j ? ctx.lineTo(px(p), py(p)) : ctx.moveTo(px(p), py(p)));
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+  };
+  trace(latlngs.length, 7, '#3a4235');
+  trace(Math.max(2, idxAtDist(sum.done) + 1), 11, '#b6f26a');
+  // stats grid
+  const cells = [
+    [mi(sum.done).toFixed(1) + ' mi', 'hiked'],
+    [Math.floor(sum.mins / 60) + 'h ' + (sum.mins % 60) + 'm', 'on the trail'],
+    ['+' + sum.gain.toLocaleString() + ' ft', 'climbed'],
+    [sum.n + ' 🪵' + (sum.best ? ' · ' + '★'.repeat(sum.best) : ''), sum.n === 1 ? 'stump logged' : 'stumps logged']
+  ];
+  cells.forEach((cell, i) => {
+    const x = i % 2 ? 810 : 270, y = i < 2 ? 700 : 880;
+    ctx.fillStyle = '#f2f4ef'; ctx.font = '800 64px ' + F;
+    ctx.fillText(cell[0], x, y);
+    ctx.fillStyle = '#9aa294'; ctx.font = '600 30px ' + F;
+    ctx.fillText(cell[1], x, y + 44);
+  });
+  if (photoBlob) {
+    try {
+      const bmp = await createImageBitmap(photoBlob);
+      const pw = 880, ph = 280, pxx = 100, pyy = 990;
+      const s = Math.max(pw / bmp.width, ph / bmp.height);
+      ctx.save(); roundedRect(ctx, pxx, pyy, pw, ph, 26); ctx.clip();
+      ctx.drawImage(bmp, pxx + (pw - bmp.width * s) / 2, pyy + (ph - bmp.height * s) / 2, bmp.width * s, bmp.height * s);
+      ctx.restore();
+    } catch {}
+  }
+  ctx.fillStyle = '#9aa294'; ctx.font = '600 30px ' + F;
+  ctx.fillText('🪵 logged on the trail, offline', 540, c.height - 36);
+  return c;
+}
+async function recapPhoto(t0) {
+  for (const st of stumps.filter(s => s.t >= t0).reverse()) {
+    const ps = await getPhotos('stump:' + st.id) || [];
+    if (ps.length) return ps[ps.length - 1].blob;
+  }
+  for (let i = 0; i < HUNT.length; i++) {
+    const ps = (await getPhotos('hunt:' + i) || []).filter(p => p.t >= t0);
+    if (ps.length) return ps[ps.length - 1].blob;
+  }
+  return null;
+}
+const recapEl = document.getElementById('recap'), recapImg = document.getElementById('recapimg');
+async function showRecap(sum) {
+  recapCanvas = await drawRecap(sum, await recapPhoto(sum.t0));
+  recapImg.src = recapCanvas.toDataURL('image/jpeg', 0.9);
+  recapEl.classList.add('show');
+  document.getElementById('recaprow').style.display = 'flex';
+}
+document.getElementById('recapclose').onclick = () => recapEl.classList.remove('show');
+document.getElementById('recapshare').onclick = async () => {
+  if (!recapCanvas) return;
+  const blob = await new Promise(r => recapCanvas.toBlob(r, 'image/jpeg', 0.9));
+  const file = new File([blob], 'big-pine-recap.jpg', {type: 'image/jpeg'});
+  if (navigator.canShare && navigator.canShare({files: [file]})) {
+    navigator.share({files: [file], title: 'Big Pine Lakes Trail'}).catch(() => {});
+  } else {
+    const a = document.createElement('a');
+    a.href = recapImg.src; a.download = 'big-pine-recap.jpg'; a.click();
+  }
+};
+document.getElementById('recaprow').onclick = () => {
+  try { showRecap(JSON.parse(localStorage.getItem('bp-recap'))); } catch {}
+};
+function endSession() {
+  if (!session) return;
+  const s = session;
+  session = null;
+  if (s.maxDone < 400) return; // no recap for sub-quarter-mile outings
+  const sum = {
+    t0: s.t0,
+    mins: Math.max(1, Math.round((Date.now() - s.t0) / 60000)),
+    done: s.maxDone,
+    gain: Math.max(0, Math.round(s.maxGain)),
+    n: stumps.filter(x => x.t >= s.t0).length,
+    best: Math.max(0, ...stumps.filter(x => x.t >= s.t0).map(x => x.rating || 0))
+  };
+  localStorage.setItem('bp-recap', JSON.stringify(sum));
+  showRecap(sum);
+}
 
 // ---------- stump sightings ----------
 let stumps = [];
@@ -1265,6 +1550,7 @@ function openStumpModal(lat, lon, note) {
 document.getElementById('stumpcancel').onclick = () => { modal.classList.remove('show'); pendingLL = null; };
 saveBtn.onclick = () => {
   if (!pendingLL) return;
+  const before = BADGES.filter(b => b.test(stumps));
   const s = {lat: pendingLL[0], lon: pendingLL[1], t: Date.now(), size: pendSize, rating: pendRating};
   stumps.push(s);
   localStorage.setItem('bp-stumps', JSON.stringify(stumps));
@@ -1272,6 +1558,13 @@ saveBtn.onclick = () => {
   modal.classList.remove('show');
   showToast((pendRating === 5 ? '🪵 It’s stumpalump time!' : '🪵 Nice stump!') +
     (pendingLL.note ? ' (' + pendingLL.note + ')' : ''));
+  if (pendRating === 5) confetti();
+  const fresh = BADGES.filter(b => b.test(stumps)).filter(b => !before.includes(b));
+  if (fresh.length) setTimeout(() => {
+    confetti();
+    showToast('🏅 Badge unlocked: ' + fresh.map(b => b.e + ' ' + b.name).join(', '));
+  }, 1500);
+  renderBadges();
   pendingLL = null;
 };
 stumpBtn.onclick = () => {
@@ -1300,9 +1593,11 @@ function onFix(p) {
     me.setLatLng(ll); acc.setLatLng(ll); acc.setRadius(p.coords.accuracy);
   }
   if (follow) map.setView(ll, Math.max(map.getZoom(), 15));
+  checkWpts(ll);
   if (tracking) {
     const {i, off} = nearestIdx(ll);
     const done = cum[i];
+    trackMilestones(i, done, ll);
     doneLine.setLatLngs(latlngs.slice(0, i + 1));
     document.getElementById('progrect').setAttribute('width', xOf(done));
     statrow.innerHTML =
@@ -1343,12 +1638,14 @@ startBtn.onclick = () => {
     startBtn.innerHTML = icon('stop', 18) + 'End';
     follow = true; startWatch();
     statrow.innerHTML = '<span>Waiting for GPS…</span>';
+    session = {t0: Date.now(), maxDone: 0, maxGain: 0, kGain: 0, startFt: null, half: false, top: false};
   } else {
     startBtn.innerHTML = icon('nav', 18) + 'Start';
     follow = false;
     doneLine.setLatLngs([]);
     document.getElementById('progrect').setAttribute('width', 0);
     idleStats(); stopWatchIfIdle();
+    endSession();
   }
 };
 startBtn.innerHTML = icon('nav', 18) + 'Start';
@@ -1369,6 +1666,7 @@ document.getElementById('wptlist').onclick = e => {
   map.flyTo([w.lat, w.lon], 16);
 };
 function renderStumpList() {
+  renderBadges();
   const el = document.getElementById('stumplist');
   if (!stumps.length) { el.innerHTML = '<div class="row dim">No stumps logged yet</div>'; return; }
   el.innerHTML = stumps.map((s, i) =>
@@ -1382,6 +1680,9 @@ function renderStumpList() {
     map.flyTo([s.lat, s.lon], 16);
   };
 }
+renderBadges();
+renderHunt();
+if (localStorage.getItem('bp-recap')) document.getElementById('recaprow').style.display = 'flex';
 document.getElementById('drive').href =
   'https://www.google.com/maps/dir/?api=1&destination=' + latlngs[0][0] + ',' + latlngs[0][1];
 document.getElementById('weather').href =
